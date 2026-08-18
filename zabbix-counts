@@ -1,0 +1,238 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+CONFIG_FILE="${ZABBIX_BAR_CONFIG:-$HOME/.config/omarchy/zabbix-bar.env}"
+OPEN_URL=0
+DEBUG=0
+
+while (( $# > 0 )); do
+  case "$1" in
+    --config)
+      CONFIG_FILE="${2:-}"
+      shift 2
+      ;;
+    --open-url)
+      OPEN_URL=1
+      shift
+      ;;
+    --debug)
+      DEBUG=1
+      shift
+      ;;
+    -h|--help)
+      cat <<'USAGE'
+Usage: zabbix-counts [--config FILE] [--open-url] [--debug]
+
+Reads ZABBIX_URL and ZABBIX_API_TOKEN from FILE or the environment, then prints
+JSON containing Zabbix Problems counts as disaster/high/average/warning.
+With --debug, prints the trigger rows behind the counts instead.
+USAGE
+      exit 0
+      ;;
+    *)
+      echo "unknown option: $1" >&2
+      exit 2
+      ;;
+  esac
+done
+
+expand_path() {
+  case "$1" in
+    "~") printf '%s\n' "$HOME" ;;
+    "~/"*) printf '%s/%s\n' "$HOME" "${1#~/}" ;;
+    *) printf '%s\n' "$1" ;;
+  esac
+}
+
+json_escape() {
+  printf '%s' "${1:-}" | jq -Rs .
+}
+
+emit() {
+  local ok="$1" configured="$2" text="$3" message="$4"
+  local disaster="${5:-0}" high="${6:-0}" average="${7:-0}" warning="${8:-0}"
+  printf '{"ok":%s,"configured":%s,"text":%s,"message":%s,"counts":{"disaster":%s,"high":%s,"average":%s,"warning":%s}}\n' \
+    "$ok" "$configured" "$(json_escape "$text")" "$(json_escape "$message")" \
+    "$disaster" "$high" "$average" "$warning"
+}
+
+CONFIG_FILE="$(expand_path "$CONFIG_FILE")"
+if [[ -f "$CONFIG_FILE" ]]; then
+  set -a
+  # shellcheck disable=SC1090
+  source "$CONFIG_FILE"
+  set +a
+fi
+
+ZABBIX_URL="${ZABBIX_URL:-}"
+ZABBIX_API_TOKEN="${ZABBIX_API_TOKEN:-${ZABBIX_TOKEN:-}}"
+
+if [[ -z "$ZABBIX_URL" || -z "$ZABBIX_API_TOKEN" ]]; then
+  if (( OPEN_URL )) && [[ -n "$ZABBIX_URL" ]]; then
+    setsid xdg-open "$ZABBIX_URL" >/dev/null 2>&1 || true
+    exit 0
+  fi
+  emit false false "0/0/0/0" "Set ZABBIX_URL and ZABBIX_API_TOKEN in $CONFIG_FILE"
+  exit 0
+fi
+
+if [[ "$ZABBIX_URL" != */api_jsonrpc.php ]]; then
+  ZABBIX_URL="${ZABBIX_URL%/}/api_jsonrpc.php"
+fi
+
+if (( OPEN_URL )); then
+  setsid xdg-open "${ZABBIX_URL%/api_jsonrpc.php}" >/dev/null 2>&1 || true
+  exit 0
+fi
+
+need_command() {
+  command -v "$1" >/dev/null 2>&1 || {
+    emit false true "0/0/0/0" "Missing required command: $1"
+    exit 0
+  }
+}
+
+need_command curl
+need_command jq
+
+api_call() {
+  local payload="$1"
+  curl -fsS --max-time "${ZABBIX_TIMEOUT_SECONDS:-8}" \
+    --request POST \
+    --url "$ZABBIX_URL" \
+    --header "Authorization: Bearer $ZABBIX_API_TOKEN" \
+    --header "Content-Type: application/json-rpc" \
+    --data "$payload"
+}
+
+count_severity() {
+  local severity="$1"
+  local payload response
+  # Use trigger.get instead of problem.get so the widget follows the current
+  # Zabbix Problems view: active monitored triggers that are firing now.
+  # problem.get can include old unresolved event rows that the UI hides.
+  payload="$(jq -cn \
+    --arg severity "$severity" \
+    '{
+      jsonrpc: "2.0",
+      method: "trigger.get",
+      params: {
+        output: ["triggerid"],
+        countOutput: true,
+        monitored: true,
+        active: true,
+        skipDependent: true,
+        filter: {
+          value: "1",
+          status: "0",
+          priority: [$severity]
+        }
+      },
+      id: $severity
+    }')"
+
+  response="$(api_call "$payload")" || return 1
+
+  jq -er '
+    if has("error") then empty
+    else (.result | tonumber)
+    end
+  ' <<<"$response"
+}
+
+debug_problems() {
+  local payload response now
+
+  payload="$(jq -cn \
+    '{
+      jsonrpc: "2.0",
+      method: "trigger.get",
+      params: {
+        output: [
+          "triggerid",
+          "description",
+          "priority",
+          "value",
+          "status",
+          "state",
+          "lastchange"
+        ],
+        monitored: true,
+        active: true,
+        skipDependent: true,
+        filter: {
+          value: "1",
+          status: "0",
+          priority: ["5", "4", "3", "2"]
+        },
+        selectHosts: ["hostid", "host", "name", "status"],
+        sortfield: "priority",
+        sortorder: "DESC"
+      },
+      id: 1
+    }')"
+
+  response="$(api_call "$payload")" || {
+    echo "Zabbix API request failed" >&2
+    return 1
+  }
+
+  if jq -e 'has("error")' >/dev/null <<<"$response"; then
+    jq '.error' <<<"$response" >&2
+    return 1
+  fi
+
+  now="$(date +%s)"
+
+  jq -r --argjson now "$now" '
+    def sev:
+      { "5": "disaster", "4": "high", "3": "average", "2": "warning" }[.] // .;
+    def age($clock):
+      (($now - ($clock | tonumber)) / 3600 | floor | tostring) + "h";
+
+    if (.result | length) == 0 then
+      "No Zabbix Problems."
+    else
+      (
+        ["sev", "triggerid", "age", "host_status", "trigger_status", "host", "trigger"] | @tsv
+      ),
+      (
+        .result[] | . as $t
+          | (($t.hosts // [])[0] // {}) as $h
+          | [
+              ($t.priority | sev),
+              $t.triggerid,
+              age($t.lastchange),
+              (if ($h.status // "0") == "0" then "enabled" else "disabled" end),
+              (if ($t.status // "0") == "0" then "enabled" else "disabled" end),
+              ($h.name // $h.host // ""),
+              $t.description
+            ] | @tsv
+      )
+    end
+  ' <<<"$response"
+}
+
+if (( DEBUG )); then
+  debug_problems
+  exit $?
+fi
+
+if ! disaster="$(count_severity 5)"; then
+  emit false true "0/0/0/0" "Zabbix API request failed"
+  exit 0
+fi
+if ! high="$(count_severity 4)"; then
+  emit false true "$disaster/0/0/0" "Zabbix API request failed" "$disaster" 0 0 0
+  exit 0
+fi
+if ! average="$(count_severity 3)"; then
+  emit false true "$disaster/$high/0/0" "Zabbix API request failed" "$disaster" "$high" 0 0
+  exit 0
+fi
+if ! warning="$(count_severity 2)"; then
+  emit false true "$disaster/$high/$average/0" "Zabbix API request failed" "$disaster" "$high" "$average" 0
+  exit 0
+fi
+
+emit true true "$disaster/$high/$average/$warning" "Zabbix Problems" "$disaster" "$high" "$average" "$warning"

@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "id": "local.zabbix-problems",
+  "name": "Zabbix Problems",
+  "version": "0.1.0",
+  "author": "local",
+  "license": "MIT",
+  "description": "Omarchy bar widget showing Zabbix Problems counts for disaster, high, average, and warning severities.",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Zabbix Problems",
+    "description": "Shows Zabbix Problems counts as disaster/high/average/warning.",
+    "category": "Monitoring",
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {
+      "refreshSeconds": 60
+    },
+    "schema": [
+      {
+        "key": "refreshSeconds",
+        "type": "number",
+        "label": "Refresh seconds"
+      }
+    ]
+  }
+}
