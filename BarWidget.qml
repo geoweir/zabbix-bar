@@ -95,10 +95,7 @@ BarWidget {
     anchors.fill: parent
     bar: root.bar
     text: root.label
-    active: false
-    foreground: "#000000"
-    activeColor: foreground
-    useActiveColor: false
+    active: !root.healthy || root.disaster > 0 || root.high > 0
     slotSize: Style.space(82)
     fontSize: Style.font.caption
     tooltipText: ""
