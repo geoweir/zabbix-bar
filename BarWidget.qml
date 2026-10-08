@@ -21,10 +21,10 @@ BarWidget {
   readonly property int refreshSeconds: Math.max(15, parseInt(setting("refreshSeconds", 60), 10) || 60)
   readonly property string scriptPath: String(Qt.resolvedUrl("zabbix-counts")).replace(/^file:\/\//, "")
   readonly property var severityRows: [
-    { name: "Disaster", value: disaster, tone: Color.urgent },
-    { name: "High", value: high, tone: Color.accent },
-    { name: "Average", value: average, tone: Color.foreground },
-    { name: "Warning", value: warning, tone: Color.muted }
+    { name: "Disaster", value: disaster },
+    { name: "High", value: high },
+    { name: "Average", value: average },
+    { name: "Warning", value: warning }
   ]
 
   function refresh() {
@@ -95,7 +95,10 @@ BarWidget {
     anchors.fill: parent
     bar: root.bar
     text: root.label
-    active: !root.healthy || root.disaster > 0 || root.high > 0
+    active: false
+    foreground: "#000000"
+    activeColor: foreground
+    useActiveColor: false
     slotSize: Style.space(82)
     fontSize: Style.font.caption
     tooltipText: ""
@@ -134,7 +137,7 @@ BarWidget {
       Text {
         width: parent.width
         text: root.status
-        color: root.healthy ? Color.muted : Color.urgent
+        color: Color.popups.text
         font.family: Style.font.family
         font.pixelSize: Style.font.caption
         renderType: Text.NativeRendering
@@ -157,7 +160,7 @@ BarWidget {
               width: Style.space(8)
               height: Style.space(8)
               radius: width / 2
-              color: modelData.tone
+              color: Color.popups.text
               anchors.verticalCenter: parent.verticalCenter
             }
 
@@ -177,7 +180,7 @@ BarWidget {
               id: countText
               width: Style.space(44)
               text: String(modelData.value)
-              color: modelData.tone
+              color: Color.popups.text
               font.family: Style.font.family
               font.pixelSize: Style.font.caption
               font.bold: true
@@ -192,7 +195,7 @@ BarWidget {
       Text {
         width: parent.width
         text: root.lastUpdated ? ("Updated " + root.lastUpdated) : "Not refreshed yet"
-        color: Color.muted
+        color: Color.popups.text
         font.family: Style.font.family
         font.pixelSize: Style.font.caption
         renderType: Text.NativeRendering
