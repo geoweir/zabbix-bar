@@ -6,7 +6,7 @@ import qs.Ui
 
 BarWidget {
   id: root
-  moduleName: "local.zabbix-problems"
+  moduleName: "geoweir.zabbix-problems"
 
   property string label: "0/0/0/0"
   property string status: "Not refreshed yet"

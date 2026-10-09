@@ -29,15 +29,22 @@ Optional settings:
 ZABBIX_TIMEOUT_SECONDS=8
 ```
 
-## Install Locally
+## Install
 
 ```bash
-mkdir -p ~/.config/omarchy/plugins/local.zabbix-problems
-cp -a manifest.json BarWidget.qml zabbix-counts README.md ~/.config/omarchy/plugins/local.zabbix-problems/
-chmod +x ~/.config/omarchy/plugins/local.zabbix-problems/zabbix-counts
-omarchy-shell shell rescanPlugins
-omarchy plugin enable local.zabbix-problems --section right
+omarchy plugin add https://github.com/geoweir/zabbix-bar.git --enable
 ```
+
+This clones the repo into `~/.config/omarchy/plugins/geoweir.zabbix-problems`
+and enables the widget on the bar. Then create the config file above.
+
+Update later with:
+
+```bash
+omarchy plugin update geoweir.zabbix-problems
+```
+
+Plugins run unsandboxed inside the shell, so review the code before enabling.
 
 Left-click the widget to open the detail popup. Right-click it to refresh
 immediately. The popup also includes refresh and browser buttons.

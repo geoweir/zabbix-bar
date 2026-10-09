@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "id": "local.zabbix-problems",
+  "id": "geoweir.zabbix-problems",
   "name": "Zabbix Problems",
   "version": "0.1.0",
-  "author": "local",
+  "author": "geoweir",
   "license": "MIT",
   "description": "Omarchy bar widget showing Zabbix Problems counts for disaster, high, average, and warning severities.",
   "kinds": [
