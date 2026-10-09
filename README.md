@@ -6,6 +6,11 @@ Omarchy bar widget showing **Zabbix Problems** counts as:
 disaster/high/average/warning
 ```
 
+Unlike plugins that list individual problems, this one is deliberately
+minimal: it shows only the four severity counts in the bar, and a click opens
+your Zabbix Problems page in the browser for the details. Use it if you want a
+glance-able number rather than an in-bar problem list.
+
 It intentionally ignores `information` and `not classified`, disabled hosts,
 disabled triggers, and dependent triggers. Internally it uses `trigger.get`
 for active monitored triggers that are firing now, because `problem.get` can
@@ -29,6 +34,11 @@ Optional settings:
 ZABBIX_TIMEOUT_SECONDS=8
 ```
 
+## Requirements
+
+`curl`, `jq` and `xdg-open` (the last only for the browser button), plus a
+Zabbix API token with read access.
+
 ## Install
 
 ```bash
@@ -42,6 +52,12 @@ Update later with:
 
 ```bash
 omarchy plugin update geoweir.zabbix-problems
+```
+
+Remove with:
+
+```bash
+omarchy plugin remove geoweir.zabbix-problems
 ```
 
 Plugins run unsandboxed inside the shell, so review the code before enabling.
