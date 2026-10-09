@@ -95,14 +95,24 @@ need_command() {
 need_command curl
 need_command jq
 
+# The token is passed to curl as a config file on stdin, never as an argument,
+# so it cannot be read from the process list by other local users.
+if [[ "$ZABBIX_API_TOKEN" == *$'\n'* || "$ZABBIX_API_TOKEN" == *$'\r'* ]]; then
+  emit false true "0/0/0/0" "ZABBIX_API_TOKEN must not contain newlines"
+  exit 0
+fi
+curl_token="${ZABBIX_API_TOKEN//\\/\\\\}"
+curl_token="${curl_token//\"/\\\"}"
+
 api_call() {
   local payload="$1"
-  curl -fsS --max-time "${ZABBIX_TIMEOUT_SECONDS:-8}" \
-    --request POST \
-    --url "$ZABBIX_URL" \
-    --header "Authorization: Bearer $ZABBIX_API_TOKEN" \
-    --header "Content-Type: application/json-rpc" \
-    --data "$payload"
+  printf 'header = "Authorization: Bearer %s"\n' "$curl_token" |
+    curl -fsS --max-time "${ZABBIX_TIMEOUT_SECONDS:-8}" \
+      --config - \
+      --request POST \
+      --url "$ZABBIX_URL" \
+      --header "Content-Type: application/json-rpc" \
+      --data "$payload"
 }
 
 count_severity() {
