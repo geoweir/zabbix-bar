@@ -25,6 +25,12 @@ ZABBIX_URL="https://zabbix.example.com/zabbix"
 ZABBIX_API_TOKEN="paste-token-here"
 ```
 
+The file contains your API token, so make it readable only by you:
+
+```bash
+chmod 600 ~/.config/omarchy/zabbix-bar.env
+```
+
 `ZABBIX_URL` may be either the frontend URL or the full
 `api_jsonrpc.php` URL.
 
